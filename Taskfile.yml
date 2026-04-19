@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+
+tasks:
+  run:
+    desc: Run API server
+    cmds:
+      - go run main.go
+
+  build:
+    desc: Build API
+    cmds:
+      - go build -o pukiwiki-migration .
+
+  clean:
+    desc: Clean the Binary
+    cmds:
+      - rm ./pukiwiki-migration
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test -v ./...
