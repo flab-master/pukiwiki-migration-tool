@@ -2,11 +2,34 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"time"
+
+	_ "modernc.org/sqlite"
 )
+
+func main() {
+	db, err := sql.Open("sqlite", "pukiwiki-migration.db")
+	if err != nil {
+		slog.Error("failed to open database", slog.String("error", err.Error()))
+		return
+	}
+	defer db.Close()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/migration/list", listMigrationGet(db))
+	mux.HandleFunc("POST /api/migration/apply", applyMigrationPost(db))
+	mux.HandleFunc("POST /api/migration/accept", acceptMigrationPost(db))
+
+	addr := ":8080"
+	slog.Info("server starting", slog.String("addr", addr))
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		slog.Error("server failed", slog.String("error", err.Error()))
+	}
+}
 
 type MigrationStatus string
 
@@ -26,78 +49,102 @@ type Migration struct {
 	UpdatedAt    time.Time       `json:"updated_at"`
 }
 
-var mockMigrations = []Migration{
-	{
-		ID:        "mig-001",
-		Title:     "FrontPage",
-		Markdown:  "# FrontPage\n\nWelcome to the wiki.",
-		Status:    StatusPending,
-		CreatedAt: time.Date(2026, 4, 1, 9, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2026, 4, 1, 9, 0, 0, 0, time.UTC),
-	},
-	{
-		ID:           "mig-002",
-		Title:        "技術メモ",
-		Markdown:     "# 技術メモ\n\n- Go言語のメモ\n- Notionの使い方",
-		NotionPageID: "notion-page-abc123",
-		Status:       StatusApplied,
-		CreatedAt:    time.Date(2026, 4, 2, 10, 0, 0, 0, time.UTC),
-		UpdatedAt:    time.Date(2026, 4, 10, 14, 30, 0, 0, time.UTC),
-	},
-	{
-		ID:           "mig-003",
-		Title:        "日記/2026-01",
-		Markdown:     "# 日記 2026-01\n\n今月の振り返り。",
-		NotionPageID: "notion-page-def456",
-		Status:       StatusAccepted,
-		CreatedAt:    time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
-		UpdatedAt:    time.Date(2026, 4, 12, 16, 0, 0, 0, time.UTC),
-	},
+func scanMigration(row *sql.Row) (Migration, error) {
+	var m Migration
+	var createdAt, updatedAt string
+	if err := row.Scan(&m.ID, &m.Title, &m.Markdown, &m.NotionPageID, &m.Status, &createdAt, &updatedAt); err != nil {
+		return Migration{}, err
+	}
+	m.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	m.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	return m, nil
 }
 
-func listMigrationGet(w http.ResponseWriter, r *http.Request) {
-	resp := map[string]any{"migrations": mockMigrations}
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(resp); err != nil {
-		slog.Error("failed to encode response", slog.String("error", err.Error()))
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(buf.Bytes())
-}
-
-func applyMigrationPost(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ID string `json:"id"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
-		return
-	}
-	if req.ID == "" {
-		http.Error(w, `{"error":"id is required"}`, http.StatusBadRequest)
-		return
-	}
-
-	for i := range mockMigrations {
-		if mockMigrations[i].ID != req.ID {
-			continue
+func listMigrationGet(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rows, err := db.Query("SELECT id, title, markdown, notion_page_id, status, created_at, updated_at FROM migrations")
+		if err != nil {
+			slog.Error("failed to query migrations", slog.String("error", err.Error()))
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
 		}
-		if mockMigrations[i].Status != StatusPending {
+		defer rows.Close()
+
+		list := []Migration{}
+		for rows.Next() {
+			var m Migration
+			var createdAt, updatedAt string
+			if err := rows.Scan(&m.ID, &m.Title, &m.Markdown, &m.NotionPageID, &m.Status, &createdAt, &updatedAt); err != nil {
+				slog.Error("failed to scan migration", slog.String("error", err.Error()))
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+				return
+			}
+			m.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+			m.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+			list = append(list, m)
+		}
+
+		resp := map[string]any{"migrations": list}
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(resp); err != nil {
+			slog.Error("failed to encode response", slog.String("error", err.Error()))
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(buf.Bytes())
+	}
+}
+
+func applyMigrationPost(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID string `json:"id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+			return
+		}
+		if req.ID == "" {
+			http.Error(w, `{"error":"id is required"}`, http.StatusBadRequest)
+			return
+		}
+
+		var status MigrationStatus
+		err := db.QueryRow("SELECT status FROM migrations WHERE id = ?", req.ID).Scan(&status)
+		if err == sql.ErrNoRows {
+			http.Error(w, `{"error":"migration not found"}`, http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			slog.Error("failed to query migration", slog.String("error", err.Error()))
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		if status != StatusPending {
 			http.Error(w, `{"error":"migration must be in pending status"}`, http.StatusConflict)
 			return
 		}
-		mockMigrations[i].Status = StatusApplied
-		mockMigrations[i].NotionPageID = "notion-page-mock-" + req.ID
-		mockMigrations[i].UpdatedAt = time.Now().UTC()
 
-		resp := map[string]any{"migration": mockMigrations[i]}
+		notionPageID := "notion-page-mock-" + req.ID
+		updatedAt := time.Now().UTC().Format(time.RFC3339)
+		_, err = db.Exec("UPDATE migrations SET status='applied', notion_page_id=?, updated_at=? WHERE id=?", notionPageID, updatedAt, req.ID)
+		if err != nil {
+			slog.Error("failed to update migration", slog.String("error", err.Error()))
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		m, err := scanMigration(db.QueryRow("SELECT id, title, markdown, notion_page_id, status, created_at, updated_at FROM migrations WHERE id = ?", req.ID))
+		if err != nil {
+			slog.Error("failed to fetch updated migration", slog.String("error", err.Error()))
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
 		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(resp); err != nil {
+		if err := json.NewEncoder(&buf).Encode(map[string]any{"migration": m}); err != nil {
 			slog.Error("failed to encode response", slog.String("error", err.Error()))
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
@@ -105,39 +152,56 @@ func applyMigrationPost(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(buf.Bytes())
-		return
 	}
-
-	http.Error(w, `{"error":"migration not found"}`, http.StatusNotFound)
 }
 
-func acceptMigrationPost(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ID string `json:"id"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
-		return
-	}
-	if req.ID == "" {
-		http.Error(w, `{"error":"id is required"}`, http.StatusBadRequest)
-		return
-	}
-
-	for i := range mockMigrations {
-		if mockMigrations[i].ID != req.ID {
-			continue
+func acceptMigrationPost(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID string `json:"id"`
 		}
-		if mockMigrations[i].Status != StatusApplied {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+			return
+		}
+		if req.ID == "" {
+			http.Error(w, `{"error":"id is required"}`, http.StatusBadRequest)
+			return
+		}
+
+		var status MigrationStatus
+		err := db.QueryRow("SELECT status FROM migrations WHERE id = ?", req.ID).Scan(&status)
+		if err == sql.ErrNoRows {
+			http.Error(w, `{"error":"migration not found"}`, http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			slog.Error("failed to query migration", slog.String("error", err.Error()))
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		if status != StatusApplied {
 			http.Error(w, `{"error":"migration must be in applied status"}`, http.StatusConflict)
 			return
 		}
-		mockMigrations[i].Status = StatusAccepted
-		mockMigrations[i].UpdatedAt = time.Now().UTC()
 
-		resp := map[string]any{"migration": mockMigrations[i]}
+		updatedAt := time.Now().UTC().Format(time.RFC3339)
+		_, err = db.Exec("UPDATE migrations SET status='accepted', updated_at=? WHERE id=?", updatedAt, req.ID)
+		if err != nil {
+			slog.Error("failed to update migration", slog.String("error", err.Error()))
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		m, err := scanMigration(db.QueryRow("SELECT id, title, markdown, notion_page_id, status, created_at, updated_at FROM migrations WHERE id = ?", req.ID))
+		if err != nil {
+			slog.Error("failed to fetch updated migration", slog.String("error", err.Error()))
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
 		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(resp); err != nil {
+		if err := json.NewEncoder(&buf).Encode(map[string]any{"migration": m}); err != nil {
 			slog.Error("failed to encode response", slog.String("error", err.Error()))
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
@@ -145,21 +209,5 @@ func acceptMigrationPost(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(buf.Bytes())
-		return
-	}
-
-	http.Error(w, `{"error":"migration not found"}`, http.StatusNotFound)
-}
-
-func main() {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/migration/list", listMigrationGet)
-	mux.HandleFunc("POST /api/migration/apply", applyMigrationPost)
-	mux.HandleFunc("POST /api/migration/accept", acceptMigrationPost)
-
-	addr := ":8080"
-	slog.Info("server starting", slog.String("addr", addr))
-	if err := http.ListenAndServe(addr, mux); err != nil {
-		slog.Error("server failed", slog.String("error", err.Error()))
 	}
 }
