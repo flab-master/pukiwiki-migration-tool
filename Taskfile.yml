@@ -22,3 +22,11 @@ tasks:
     desc: Run tests
     cmds:
       - go test -v ./...
+
+  migrate:up:
+    desc: Migrate up all DB schemas
+    cmd: goose -dir db/migrations sqlite3 pukiwiki-migration.db up
+
+  migrate:down:
+    desc: Migrate down all DB schemas
+    cmd: goose -dir db/migrations sqlite3 pukiwiki-migration.db down
