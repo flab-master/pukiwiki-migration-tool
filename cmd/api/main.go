@@ -12,8 +12,13 @@ import (
 )
 
 func init() {
-	// ロガーを初期化
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	level := slog.LevelInfo
+	if v := os.Getenv("LOG_LEVEL"); v != "" {
+		if err := level.UnmarshalText([]byte(v)); err != nil {
+			slog.Warn("invalid LOG_LEVEL, using INFO", slog.String("value", v))
+		}
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})))
 }
 
 func main() {
