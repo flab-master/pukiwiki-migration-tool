@@ -6,16 +6,21 @@ import (
 	"sync/atomic"
 )
 
+type migrationJob struct {
+	user         string
+	notionPageId string
+}
+
 type PageMigrationUsecase struct {
 	db          *sql.DB
-	queue       chan string
+	queue       chan migrationJob
 	currentUser atomic.Pointer[string]
 }
 
 func NewPageMigrationUsecase(db *sql.DB) *PageMigrationUsecase {
 	u := &PageMigrationUsecase{
 		db:    db,
-		queue: make(chan string, 100),
+		queue: make(chan migrationJob, 100),
 	}
 
 	go u.worker()
@@ -24,10 +29,10 @@ func NewPageMigrationUsecase(db *sql.DB) *PageMigrationUsecase {
 }
 
 func (u *PageMigrationUsecase) worker() {
-	for user := range u.queue {
-		u.currentUser.Store(&user)
+	for job := range u.queue {
+		u.currentUser.Store(&job.user)
 
-		slog.Info("migration starting", slog.String("user", user))
+		slog.Info("migration starting", slog.String("user", job.user))
 
 		// TODO: 1. PukiWiki から seminar-personal/{user}/ 配下のページ一覧を取得
 
@@ -37,15 +42,15 @@ func (u *PageMigrationUsecase) worker() {
 
 		// TODO: 4. ticker でレート制限しながら各ページを処理
 		//          a. PukiWiki からコンテンツ取得
-		//          b. Notion API でページ作成
+		//          b. Notion API でページ作成（notionPageId 配下に作成）
 		//          c. updatePageStatus(db, user, pageName, ...) で結果を記録
 
 		u.currentUser.Store(nil)
 	}
 }
 
-func (u *PageMigrationUsecase) enqueue(user string) {
-	u.queue <- user
+func (u *PageMigrationUsecase) enqueue(user, notionPageId string) {
+	u.queue <- migrationJob{user: user, notionPageId: notionPageId}
 }
 
 func (u *PageMigrationUsecase) isMigrating(user string) bool {

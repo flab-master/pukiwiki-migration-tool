@@ -8,7 +8,8 @@ import (
 )
 
 type migrationRequest struct {
-	User string `json:"user"`
+	User         string `json:"user"`
+	NotionPageId string `json:"notionPageId"`
 }
 
 func HandleMigrate(u *PageMigrationUsecase) http.HandlerFunc {
@@ -19,7 +20,7 @@ func HandleMigrate(u *PageMigrationUsecase) http.HandlerFunc {
 			return
 		}
 
-		u.enqueue(req.User)
+		u.enqueue(req.User, req.NotionPageId)
 
 		w.WriteHeader(http.StatusAccepted)
 	}
