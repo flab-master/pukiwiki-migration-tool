@@ -26,7 +26,7 @@ sqlite3 pukiwiki-migration.db
 **API を起動する**
 
 ```bash
-go run main.go
+go run ./cmd/
 
 # Task を使う場合はこっち
 task run
@@ -35,7 +35,7 @@ task run
 **API をビルドする**
 
 ```bash
-go build -o pukiwiki-migration .
+go build -o pukiwiki-migration ./cmd/
 
 # Task を使う場合はこっち
 task build
@@ -57,24 +57,16 @@ task test
 
 以下は cURL コマンドを使った例 (Postman でも可)
 
-**移行一覧を取得する**
+**移行を開始する**
 
 ```bash
-curl http://localhost:8080/api/migration/list
+curl -X POST http://localhost:8080/api/migrate \
+    -H "Content-Type: application/json" \
+    -d '{"user":"morita2023"}'
 ```
 
-**移行申請を行う**
+**移行の進捗を確認する**
 
 ```bash
-curl -X POST http://localhost:8080/api/migration/apply \
-    -H "Content-Type: application/json" \
-    -d '{"id":"mig-001"}'
-```
-
-**移行を承認する**
-
-```bash
-curl -X POST http://localhost:8080/api/migration/accept \
-    -H "Content-Type: application/json" \
-    -d '{"id":"mig-002"}' | jq .
+curl http://localhost:8080/api/migrate/morita2023/status
 ```

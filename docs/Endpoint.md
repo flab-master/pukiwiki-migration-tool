@@ -4,34 +4,48 @@ Base URL: `http://localhost:8080`
 
 ## POST /api/migrate
 
-移行を開始する。処理はバックグラウンドで実行され、即座に 202 を返す。  
+ユーザーの移行をキューに積む。処理はバックグラウンドで順番に実行され、即座に 202 を返す。
 再実行した場合、`done` 済みのページはスキップし `pending` / `failed` のページのみ再処理する。
+
+### リクエスト
+
+```json
+{
+  "user": "morita2023"
+}
+```
+
+| フィールド | 説明                                               |
+| ---------- | -------------------------------------------------- |
+| `user`     | PukiWiki のユーザー名（ページパスの第2セグメント） |
 
 ### レスポンス
 
-**202 Accepted** — 移行開始
+**202 Accepted** — キューに積んだ
 
 ```json
 {}
 ```
 
-**409 Conflict** — すでに移行が実行中
+**400 Bad Request** — `user` が空またはリクエストボディ不正
 
 ```json
-{ "error": "migration is already running" }
+{ "error": "user is required" }
 ```
 
 ### cURL 例
 
 ```bash
-curl -X POST http://localhost:8080/api/migrate
+curl -X POST http://localhost:8080/api/migrate \
+    -H "Content-Type: application/json" \
+    -d '{"user":"morita2023"}'
 ```
 
 ---
 
-## GET /api/migrate/status
+## GET /api/migrate/{user}/status
 
-移行の進捗を取得する。
+指定ユーザーの移行進捗を取得する。
 
 ### レスポンス
 
@@ -39,24 +53,32 @@ curl -X POST http://localhost:8080/api/migrate
 
 ```json
 {
+  "user": "morita2023",
   "running": true,
-  "total": 100,
-  "done": 42,
-  "failed": 3,
-  "pending": 55
+  "total": 30,
+  "done": 12,
+  "failed": 1,
+  "pending": 17
 }
 ```
 
-| フィールド | 説明                                 |
-| ---------- | ------------------------------------ |
-| `running`  | バックグラウンド処理が実行中かどうか |
-| `total`    | 対象ページ総数                       |
-| `done`     | 移行完了数                           |
-| `failed`   | 失敗数（再実行で再処理される）       |
-| `pending`  | 未処理数                             |
+| フィールド | 説明                                      |
+| ---------- | ----------------------------------------- |
+| `user`     | ユーザー名                                |
+| `running`  | worker が現在このユーザーを処理中かどうか |
+| `total`    | 対象ページ総数                            |
+| `done`     | 移行完了数                                |
+| `failed`   | 失敗数（再実行で再処理される）            |
+| `pending`  | 未処理数                                  |
+
+**404 Not Found** — 指定ユーザーの移行レコードが存在しない
+
+```json
+{ "error": "user not found" }
+```
 
 ### cURL 例
 
 ```bash
-curl http://localhost:8080/api/migrate/status
+curl http://localhost:8080/api/migrate/morita2023/status
 ```
