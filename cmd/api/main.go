@@ -46,6 +46,7 @@ func main() {
 
 	// HTTP ハンドラーのルーティング設定
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health", internal.HandleHealth())
 	mux.HandleFunc("POST /api/migrate", internal.HandleMigrate(pmu))
 	mux.HandleFunc("GET /api/migrate/{user}/status", internal.HandleStatus(pmu))
 
