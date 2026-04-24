@@ -3,11 +3,11 @@ package internal
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"errors"
 )
 
 type CreatePageRequest struct {
@@ -31,19 +31,18 @@ func createPage() error {
 	reqBody.Parent.PageID = parentPageID
 	reqBody.Markdown = `
 	# Goから作成したページ
-	
+
 	<table>
 	<tr><td>名前</td><td>年齢</td></tr>
 	<tr><td>田中</td><td>20</td></tr>
 	<tr><td>佐藤</td><td>21</td></tr>
 	</table>
 	`
-	
 
 	// 3. JSONに変換する
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return fmt.Errof("JSON変換エラー: %w", err)
+		return fmt.Errorf("JSON変換エラー: %w", err)
 	}
 
 	// 4. HTTPリクエストを作る
@@ -74,4 +73,6 @@ func createPage() error {
 	fmt.Println("status:", resp.Status)
 	fmt.Println("response:")
 	fmt.Println(string(body))
+
+	return nil
 }
