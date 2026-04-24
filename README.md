@@ -62,7 +62,7 @@ task test
 ```bash
 curl -X POST http://localhost:8080/api/migrate \
     -H "Content-Type: application/json" \
-    -d '{"user":"morita2023"}'
+    -d '{"user":"morita2023", "notionPageId": "8723b73c-487b-7427-b497-9f5bd58ff974"}'
 ```
 
 **移行の進捗を確認する**
