@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"pukiwiki-migration/internal"
 
@@ -48,10 +49,19 @@ func main() {
 	mux.HandleFunc("POST /api/migrate", internal.HandleMigrate(pmu))
 	mux.HandleFunc("GET /api/migrate/{user}/status", internal.HandleStatus(pmu))
 
+	// CORS 設定
+	rawOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	var allowedOrigins []string
+	if rawOrigins != "" {
+		for o := range strings.SplitSeq(rawOrigins, ",") {
+			allowedOrigins = append(allowedOrigins, strings.TrimSpace(o))
+		}
+	}
+
 	// API サーバーを起動する
 	addr := ":8080"
 	slog.Info("server starting", slog.String("addr", addr))
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := http.ListenAndServe(addr, internal.CORSMiddleware(allowedOrigins, mux)); err != nil {
 		slog.Error("server failed", slog.String("error", err.Error()))
 	}
 }
