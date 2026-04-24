@@ -52,7 +52,8 @@ task test
 
 ## API の動作確認
 
-**[エンドポイントの仕様](./docs/endpoints.md)**
+**[API設計](./docs/API-Design.md)**
+**[エンドポイントの仕様](./docs/Endpoint.md)**
 
 以下は cURL コマンドを使った例 (Postman でも可)
 
