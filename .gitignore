@@ -4,3 +4,5 @@ pukiwiki-migration.db
 pukiwiki-migration
 
 .env
+
+.vault_pass

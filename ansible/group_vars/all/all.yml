@@ -1,0 +1,15 @@
+---
+deploy_dir: /opt/pukiwiki-migration
+
+ghcr_image: "ghcr.io/morit958/pukiwiki-migration-tool:latest"
+ghcr_username: "morit958"
+
+pukiwiki_base_url: "https://f-lab.mydns.jp"
+cors_allowed_origins: "http://localhost:5173"
+log_level: "INFO"
+
+# vault から参照
+ghcr_token: "{{ vault_ghcr_token }}"
+pukiwiki_username: "{{ vault_pukiwiki_username }}"
+pukiwiki_password: "{{ vault_pukiwiki_password }}"
+cloudflare_tunnel_token: "{{ vault_cloudflare_tunnel_token }}"

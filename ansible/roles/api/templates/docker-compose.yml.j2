@@ -1,0 +1,24 @@
+services:
+  api:
+    image: "{{ ghcr_image }}"
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - "{{ deploy_dir }}/data:/app/data"
+    environment:
+      PUKIWIKI_BASE_URL: "{{ pukiwiki_base_url }}"
+      PUKIWIKI_USERNAME: "{{ pukiwiki_username }}"
+      PUKIWIKI_PASSWORD: "{{ pukiwiki_password }}"
+      CORS_ALLOWED_ORIGINS: "{{ cors_allowed_origins }}"
+      DB_PATH: /app/data/pukiwiki-migration.db
+      LOG_LEVEL: "{{ log_level }}"
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: "{{ cloudflare_tunnel_token }}"
+    depends_on:
+      - api
+    restart: unless-stopped
