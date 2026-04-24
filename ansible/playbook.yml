@@ -1,0 +1,6 @@
+---
+- name: Deploy pukiwiki-migration API
+  hosts: homeserver
+  become: true
+  roles:
+    - api
