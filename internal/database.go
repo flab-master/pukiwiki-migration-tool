@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type StatusSummary struct {
+type statusSummary struct {
 	Total   int `json:"total"`
 	Done    int `json:"done"`
 	Failed  int `json:"failed"`
@@ -43,19 +43,19 @@ func updatePageStatus(db *sql.DB, user, pageName, status, notionID, errMsg strin
 	return err
 }
 
-func getStatusSummary(db *sql.DB, user string) (StatusSummary, error) {
+func getStatusSummary(db *sql.DB, user string) (statusSummary, error) {
 	rows, err := db.Query("SELECT status, COUNT(*) FROM pages WHERE user=? GROUP BY status", user)
 	if err != nil {
-		return StatusSummary{}, err
+		return statusSummary{}, err
 	}
 	defer rows.Close()
 
-	var s StatusSummary
+	var s statusSummary
 	for rows.Next() {
 		var status string
 		var count int
 		if err := rows.Scan(&status, &count); err != nil {
-			return StatusSummary{}, err
+			return statusSummary{}, err
 		}
 		s.Total += count
 		switch status {

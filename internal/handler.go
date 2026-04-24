@@ -12,7 +12,7 @@ type migrationRequest struct {
 	NotionPageId string `json:"notionPageId"`
 }
 
-func HandleMigrate(u *PageMigrationUsecase) http.HandlerFunc {
+func HandleMigrate(u *pageMigrator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req migrationRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.User == "" {
@@ -29,10 +29,10 @@ func HandleMigrate(u *PageMigrationUsecase) http.HandlerFunc {
 type statusResponse struct {
 	User    string `json:"user"`
 	Running bool   `json:"running"`
-	StatusSummary
+	statusSummary
 }
 
-func HandleStatus(u *PageMigrationUsecase) http.HandlerFunc {
+func HandleStatus(u *pageMigrator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user := r.PathValue("user")
 
@@ -50,7 +50,7 @@ func HandleStatus(u *PageMigrationUsecase) http.HandlerFunc {
 		resp := statusResponse{
 			User:          user,
 			Running:       u.isMigrating(user),
-			StatusSummary: summary,
+			statusSummary: summary,
 		}
 
 		var buf bytes.Buffer
