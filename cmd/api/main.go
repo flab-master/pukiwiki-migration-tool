@@ -23,7 +23,9 @@ func main() {
 	if dbPath == "" {
 		dbPath = "pukiwiki-migration.db"
 	}
-	// TODO: PUKIWIKI_BASE_URL := os.Getenv("PUKIWIKI_BASE_URL")
+	pukiBaseURL := os.Getenv("PUKIWIKI_BASE_URL")
+	pukiUsername := os.Getenv("PUKIWIKI_USERNAME")
+	pukiPassword := os.Getenv("PUKIWIKI_PASSWORD")
 	// TODO: NOTION_API_TOKEN := os.Getenv("NOTION_API_TOKEN")
 
 	// DB へ接続する
@@ -34,7 +36,7 @@ func main() {
 	}
 	defer db.Close()
 
-	pmu := internal.NewPageMigrationUsecase(db)
+	pmu := internal.NewPageMigrator(db, pukiBaseURL, pukiUsername, pukiPassword)
 
 	// HTTP ハンドラーのルーティング設定
 	mux := http.NewServeMux()

@@ -6,12 +6,12 @@ tasks:
   run:
     desc: Run API server
     cmds:
-      - go run ./cmd/
+      - go run ./cmd/api/main.go
 
   build:
     desc: Build API
     cmds:
-      - go build -o pukiwiki-migration ./cmd/
+      - go build -o pukiwiki-migration ./cmd/api/main.go
 
   clean:
     desc: Clean the Binary
