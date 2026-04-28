@@ -32,6 +32,7 @@ func main() {
 	pukiBaseURL := os.Getenv("PUKIWIKI_BASE_URL")
 	pukiUsername := os.Getenv("PUKIWIKI_USERNAME")
 	pukiPassword := os.Getenv("PUKIWIKI_PASSWORD")
+	jwtSecret := os.Getenv("JWT_SECRET")
 	// TODO: NOTION_API_TOKEN := os.Getenv("NOTION_API_TOKEN")
 
 	// DB へ接続する
@@ -46,8 +47,12 @@ func main() {
 
 	// HTTP ハンドラーのルーティング設定
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/migrate", internal.HandleMigrate(pmu))
-	mux.HandleFunc("GET /api/migrate/{user}/status", internal.HandleStatus(pmu))
+	mux.HandleFunc("GET /health", internal.HandleHealth())
+	mux.HandleFunc("POST /api/auth/login", internal.HandleLogin(pukiUsername, pukiPassword, jwtSecret))
+
+	authMW := internal.JWTMiddleware(jwtSecret)
+	mux.Handle("POST /api/migrate", authMW(internal.HandleMigrate(pmu)))
+	mux.Handle("GET /api/migrate/{user}/status", authMW(internal.HandleStatus(pmu)))
 
 	// CORS 設定
 	rawOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")

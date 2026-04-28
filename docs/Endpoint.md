@@ -2,6 +2,26 @@
 
 Base URL: `http://localhost:8080`
 
+## GET /health
+
+API プロセスが起動していることを確認する。
+
+### レスポンス
+
+**200 OK**
+
+```json
+{ "status": "ok" }
+```
+
+### cURL 例
+
+```bash
+curl http://localhost:8080/health
+```
+
+---
+
 ## POST /api/migrate
 
 ユーザーの移行をキューに積む。処理はバックグラウンドで順番に実行され、即座に 202 を返す。
