@@ -1,7 +1,5 @@
-import RequestPage from "./requestPage";
 import { useState } from 'react'
-import { useNavigate } from "react-router-dom";
-//<button onClick={() => transApply(formData)}>移行申請</button>
+import { useNavigate } from 'react-router-dom'
 
 type FormData = {
   userID: string
@@ -9,67 +7,90 @@ type FormData = {
 }
 
 export default function InputForm() {
-    const [formData, setFormData] = useState<FormData>({
-        userID: "",
-        pageID: "",
-    })
+  const [formData, setFormData] = useState<FormData>({
+    userID: '',
+    pageID: '',
+  })
 
-    const navigate = useNavigate()
+  const navigate = useNavigate()
 
-    const addData = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const addData = (e: React.ChangeEvent<HTMLInputElement>) => {
     const key = e.target.name as keyof FormData
     const value = e.target.value
 
     setFormData((current) => ({
-        ...current,
-        [key]: value,
+      ...current,
+      [key]: value,
     }))
+  }
+
+  const goRequestPage = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+
+    if (!formData.userID.trim() || !formData.pageID.trim()) {
+      alert('userID と pageID を入力してください。')
+      return
     }
 
-    const goRequestPage = () => {
-        if(!formData.userID.trim() || !formData.pageID.trim()){
-            alert("userIDとpageIDを入力してください")
-            return
-        }
+    navigate('/request', {
+      state: {
+        userID: formData.userID.trim(),
+        pageID: formData.pageID.trim(),
+      },
+    })
+  }
 
-        navigate("/request",{
-            state: {
-                userID: formData.userID,
-                pageID: formData.pageID
-            }
-        })
-    }
+  return (
+    <main className="form-page">
+      <section className="panel">
+        <div className="page-heading">
+          <p className="eyebrow">Step 1</p>
+          <h1>移行情報の入力</h1>
+          <p>PukiWiki のユーザーIDと、移行先の Notion ページIDを入力してください。</p>
+        </div>
 
-    return (
-    <>
-        <h1>Pukiwiki-Migration-Tool</h1>
-        <h2>pukiwikiの個人のページのseminar-personal/userIDのuserIDの部分を入力</h2>
-        <p>（例：fujimoto2025）</p>
-        <input
-        name="userID"
-        type="text" 
-        value={formData.userID}
-        onChange={addData}
-        placeholder='pukiwikiのuserIDを入力' 
-        />
+        <form className="input-form" onSubmit={goRequestPage}>
+          <label className="field">
+            <span>PukiWiki userID</span>
+            <input
+              name="userID"
+              type="text"
+              value={formData.userID}
+              onChange={addData}
+              placeholder="例: fujimoto2025"
+              autoComplete="username"
+            />
+            <small>seminar-personal/userID の userID 部分を入力します。</small>
+          </label>
 
-        <h2>ページを追加するnotionのページIDを入力</h2>
-        <input
-        name="pageID"
-        type="text" 
-        value={formData.pageID}
-        onChange={addData}
-        placeholder='notionのpageIDを入力' 
-        />
-        <br></br>
+          <label className="field">
+            <span>Notion pageID</span>
+            <input
+              name="pageID"
+              type="text"
+              value={formData.pageID}
+              onChange={addData}
+              placeholder="Notion のページID"
+            />
+            <small>移行先として追加する Notion ページのIDです。</small>
+          </label>
 
-        
-        <p>{formData.userID}</p>
-        <p>{formData.pageID}</p>
+          <div className="summary-box" aria-label="入力内容">
+            <div>
+              <span>userID</span>
+              <strong>{formData.userID || '未入力'}</strong>
+            </div>
+            <div>
+              <span>pageID</span>
+              <strong>{formData.pageID || '未入力'}</strong>
+            </div>
+          </div>
 
-        <button onClick={goRequestPage}>確認画面へ</button>
-        
-          
-    </>
-    )
+          <button className="primary-button" type="submit">
+            確認画面へ
+          </button>
+        </form>
+      </section>
+    </main>
+  )
 }
