@@ -1,83 +1,55 @@
-import { useState } from 'react'
 import './App.css'
-
-type FormData = {
-  userID: string
-  pageID: string
-}
+import RequestPage from './components/requestPage'
+import InputForm from './components/inputForm'
+import RequestListPage from './components/requestListPage'
+import { Routes, Route, useNavigate } from 'react-router-dom'
 
 function App() {
-  const [formData, setFormData] = useState<FormData>({
-    userID: "",
-    pageID: "",
-  })
-
-  const addData = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const key = e.target.name as keyof FormData
-    const value = e.target.value
-
-    setFormData((current) => ({
-      ...current,
-      [key]: value,
-    }))
-  }
-
-  const transApply = async (userData: FormData) => {
-    console.log(userData.userID + "が移行申請しました。")
-    if(!userData.userID.trim() || !userData.pageID.trim()){
-      console.error("userIDかpageIDの両方を入力してください")
-      return
-    }
-
-    try {
-      const response = await fetch("http://localhost:8080/api/migrate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          user: userData.userID,
-        }),
-      })
-
-      if(!response.ok){
-        console.error("移行申請に失敗しました")
-        return
-      }
-
-      console.log(userData.userID + "が移行申請しました。")
-    } catch (error){
-      console.error("通信エラーが発生しました", error)
-    }
-  }
+  const navigate = useNavigate()
 
   return (
-    <>
-      <h1>Pukiwiki-Migration-Tool</h1>
-      <h2>pukiwikiの個人のページのseminar-personal/userIDのuserIDの部分を入力</h2>
-      <p>（例：fujimoto2025）</p>
-      <input
-       name="userID"
-       type="text" 
-       value={formData.userID}
-       onChange={addData}
-       placeholder='pukiwikiのuserIDを入力' 
-      />
+    <div className="app-shell">
+      <header className="app-header">
+        <button className="ghost-button" onClick={() => navigate('/')}>
+          ホーム
+        </button>
+        <button className="ghost-button" onClick={() => navigate('/requests')}>
+          申請一覧
+        </button>
+        <button className="primary-button compact-button" onClick={() => navigate('/input')}>
+          新規申請
+        </button>
+      </header>
 
-      <h2>ページを追加するnotionのページIDを入力</h2>
-      <input
-       name="pageID"
-       type="text" 
-       value={formData.pageID}
-       onChange={addData}
-       placeholder='notionのpageIDを入力' 
-      />
-      <br></br>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <main className="home-page">
+              <div className="page-heading">
+                <p className="eyebrow">Migration Tool</p>
+                <h1>PukiWiki 移行申請</h1>
+                <p>
+                  PukiWiki の個人ページを Notion へ移行するための申請情報を入力します。
+                </p>
+              </div>
 
-      <button onClick={() => transApply(formData)}>移行申請</button>
-      <p>{formData.userID}</p>
-      <p>{formData.pageID}</p>
-    </>
+              <div className="home-actions">
+                <button className="primary-button" onClick={() => navigate('/input')}>
+                  入力を開始
+                </button>
+                <button className="secondary-button" onClick={() => navigate('/requests')}>
+                  申請一覧を見る
+                </button>
+              </div>
+            </main>
+          }
+        />
+        <Route path="/input" element={<InputForm />} />
+        <Route path="/request" element={<RequestPage />} />
+        <Route path="/requests" element={<RequestListPage />} />
+      </Routes>
+    </div>
   )
 }
 
