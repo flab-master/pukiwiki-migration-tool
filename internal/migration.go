@@ -72,7 +72,7 @@ func (pm *pageMigrator) migrate(job migrationJob) error {
 	if err != nil {
 		return fmt.Errorf("list pages: %w", err)
 	}
-	slog.Debug("fetched pages", slog.String("user", job.user), slog.Int("count", len(pages)))
+	slog.Info("fetched pages", slog.String("user", job.user), slog.Int("count", len(pages)))
 
 	// TODO: 2. upsertPages(db, user, pageNames) で SQLite に登録
 
