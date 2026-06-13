@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/moriT958/libpukiwiki"
@@ -103,27 +105,54 @@ func (u *migrationUsecase) startJob(migID, user, notionPageID string) {
 	}
 	slog.Info("migration processing", "total", len(pending))
 
-	for _, pageName := range pending {
-		slog.Info("migrating page", "page", pageName)
+	jobs := make(chan string, len(pending))
+	for _, p := range pending {
+		jobs <- p
+	}
+	close(jobs)
 
-		content, err := puki.GetPageSource(pageName)
-		if err != nil {
-			slog.Warn("failed to get page content", "page", pageName, "error", err)
-			u.repo.updatePageStatus(ctx, user, pageName, "failed", "", err.Error())
-			continue
-		}
+	// Notion API rate limit: 3 req/sec
+	ticker := time.NewTicker(time.Second / 3)
+	defer ticker.Stop()
 
-		notionID, err := createPage(u.notionToken, notionPageID, pageName, content)
-		if err != nil {
-			slog.Warn("failed to create notion page", "page", pageName, "error", err)
-			u.repo.updatePageStatus(ctx, user, pageName, "failed", "", err.Error())
-			continue
-		}
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for pageName := range jobs {
+				slog.Info("migrating page", "page", pageName)
 
-		u.repo.updatePageStatus(ctx, user, pageName, "done", notionID, "")
-		slog.Info("page migrated", "page", pageName)
+				content, err := puki.GetPageSource(pageName)
+				if err != nil {
+					slog.Warn("failed to get page content", "page", pageName, "error", err)
+					if dbErr := u.repo.updatePageStatus(ctx, user, pageName, "failed", "", err.Error()); dbErr != nil {
+						slog.Error("failed to update page status to failed", "page", pageName, "error", dbErr)
+					}
+					continue
+				}
+
+				<-ticker.C
+
+				notionID, err := createPage(u.notionToken, notionPageID, pageName, content)
+				if err != nil {
+					slog.Warn("failed to create notion page", "page", pageName, "error", err)
+					if dbErr := u.repo.updatePageStatus(ctx, user, pageName, "failed", "", err.Error()); dbErr != nil {
+						slog.Error("failed to update page status to failed", "page", pageName, "error", dbErr)
+					}
+					continue
+				}
+
+				if dbErr := u.repo.updatePageStatus(ctx, user, pageName, "done", notionID, ""); dbErr != nil {
+					slog.Error("failed to update page status to done", "page", pageName, "error", dbErr)
+					continue
+				}
+				slog.Info("page migrated", "page", pageName)
+			}
+		}()
 	}
 
+	wg.Wait()
 	u.repo.updateMigrationStatus(ctx, migID, "done")
 	slog.Info("migration completed", "migrationID", migID, "user", user)
 }
