@@ -3,10 +3,15 @@
 version: "3"
 
 tasks:
-  run:
+  dev:
     desc: Run API server
     cmds:
       - go run ./cmd/api/main.go
+
+  fmt:
+    desc: Run go fmt
+    cmds:
+      - go fmt ./...
 
   build:
     desc: Build API
@@ -25,8 +30,8 @@ tasks:
 
   migrate:up:
     desc: Migrate up all DB schemas
-    cmd: goose -dir db/migrations sqlite3 pukiwiki-migration.db up
+    cmd: goose -dir internal/infra/db/migrations sqlite3 pukiwiki-migration.db up
 
   migrate:down:
     desc: Migrate down all DB schemas
-    cmd: goose -dir db/migrations sqlite3 pukiwiki-migration.db down
+    cmd: goose -dir internal/infra/db/migrations sqlite3 pukiwiki-migration.db down
