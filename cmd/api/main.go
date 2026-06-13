@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strings"
 
-	"pukiwiki-migration/internal"
+	"pukiwiki-migration/internal/infra"
+	"pukiwiki-migration/internal/infra/router"
 
 	_ "modernc.org/sqlite"
 )
@@ -23,50 +23,24 @@ func init() {
 }
 
 func main() {
+	cfg := infra.NewConfig()
 
-	// 環境変数から接続情報を取得する
-	dbPath := os.Getenv("DB_PATH")
-	if dbPath == "" {
-		dbPath = "pukiwiki-migration.db"
-	}
-	pukiBaseURL := os.Getenv("PUKIWIKI_BASE_URL")
-	pukiUsername := os.Getenv("PUKIWIKI_USERNAME")
-	pukiPassword := os.Getenv("PUKIWIKI_PASSWORD")
-	jwtSecret := os.Getenv("JWT_SECRET")
-	// TODO: NOTION_API_TOKEN := os.Getenv("NOTION_API_TOKEN")
-
-	// DB へ接続する
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite", cfg.DBPath)
 	if err != nil {
 		slog.Error("failed to open database", slog.String("error", err.Error()))
 		return
 	}
 	defer db.Close()
 
-	pmu := internal.NewPageMigrator(db, pukiBaseURL, pukiUsername, pukiPassword)
-
-	// HTTP ハンドラーのルーティング設定
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", internal.HandleHealth())
-	mux.HandleFunc("POST /api/auth/login", internal.HandleLogin(pukiUsername, pukiPassword, jwtSecret))
-
-	authMW := internal.JWTMiddleware(jwtSecret)
-	mux.Handle("POST /api/migrate", authMW(internal.HandleMigrate(pmu)))
-	mux.Handle("GET /api/migrate/{user}/status", authMW(internal.HandleStatus(pmu)))
-
-	// CORS 設定
-	rawOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
-	var allowedOrigins []string
-	if rawOrigins != "" {
-		for o := range strings.SplitSeq(rawOrigins, ",") {
-			allowedOrigins = append(allowedOrigins, strings.TrimSpace(o))
-		}
+	router, err := router.New(db, cfg)
+	if err != nil {
+		slog.Error("failed to create router", slog.String("error", err.Error()))
+		return
 	}
 
-	// API サーバーを起動する
-	addr := ":8080"
+	const addr = ":8080"
 	slog.Info("server starting", slog.String("addr", addr))
-	if err := http.ListenAndServe(addr, internal.CORSMiddleware(allowedOrigins, mux)); err != nil {
+	if err := http.ListenAndServe(addr, router); err != nil {
 		slog.Error("server failed", slog.String("error", err.Error()))
 	}
 }
