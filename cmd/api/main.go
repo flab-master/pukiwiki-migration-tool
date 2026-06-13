@@ -25,7 +25,7 @@ func init() {
 func main() {
 	cfg := infra.NewConfig()
 
-	db, err := sql.Open("sqlite", cfg.DBPath)
+	db, err := sql.Open("sqlite", cfg.DBPath+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		slog.Error("failed to open database", slog.String("error", err.Error()))
 		return

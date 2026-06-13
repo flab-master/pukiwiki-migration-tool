@@ -2,6 +2,11 @@
 
 Base URL: `http://localhost:8080`
 
+## 認証
+
+- `/api/migrate` 以下のエンドポイントは JWT 認証が必要
+- `Authorization: Bearer <token>` ヘッダーを付与する
+
 ## GET /health
 
 API プロセスが起動していることを確認する。
@@ -22,32 +27,72 @@ curl http://localhost:8080/health
 
 ---
 
-## POST /api/migrate
+## POST /api/auth/login
 
-ユーザーの移行をキューに積む。処理はバックグラウンドで順番に実行され、即座に 202 を返す。
-再実行した場合、`done` 済みのページはスキップし `pending` / `failed` のページのみ再処理する。
+PukiWiki の認証情報で JWT を取得する。
 
 ### リクエスト
 
 ```json
 {
-  "user": "morita2023",
-  "notionPageId": "djalfja...uuid"
+  "username": "admin",
+  "password": "secret"
 }
 ```
 
-| フィールド     | 説明                                               |
-| -------------- | -------------------------------------------------- |
-| `user`         | PukiWiki のユーザー名（ページパスの第2セグメント） |
-| `notionPageId` | Notion の PageId                                   |
+### レスポンス
+
+**200 OK**
+
+```json
+{ "token": "<jwt>" }
+```
+
+**401 Unauthorized** — 認証情報が不正
+
+```json
+{ "error": "invalid credentials" }
+```
+
+### cURL 例
+
+```bash
+curl -X POST http://localhost:8080/api/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{"username":"admin", "password":"secret"}'
+```
+
+---
+
+## POST /api/migrate
+
+ユーザーの移行ジョブを実行する
+
+### リクエスト
+
+```json
+{
+  "user": "morit958",
+  "notionPageId": "8723b73c-..."
+}
+```
+
+| フィールド     | 説明                    |
+| -------------- | ----------------------- |
+| `user`         | PukiWiki のユーザー名   |
+| `notionPageId` | 移行先 Notion の PageId |
 
 ### レスポンス
 
-**202 Accepted** — キューに積んだ
+**202 Accepted**
 
 ```json
-{}
+{ "id": "550e8400-e29b-41d4-a716-446655440000" }
 ```
+
+| フィールド | 説明                                       |
+| ---------- | ------------------------------------------ |
+| `id`       | 移行ジョブ ID。進捗確認 (`/status`) で使う |
 
 **400 Bad Request** — `user` が空またはリクエストボディ不正
 
@@ -60,14 +105,15 @@ curl http://localhost:8080/health
 ```bash
 curl -X POST http://localhost:8080/api/migrate \
     -H "Content-Type: application/json" \
-    -d '{"user":"morita2023"}'
+    -H "Authorization: Bearer <JWT>" \
+    -d '{"user":"morit958", "notionPageId":"8723b73c-487b-7427-b497-9f5bd58ff974"}'
 ```
 
 ---
 
-## GET /api/migrate/{user}/status
+## GET /api/migrate/{id}/status
 
-指定ユーザーの移行進捗を取得する。
+移行ジョブの進捗を取得する。`{id}` は `POST /api/migrate` で返ってきた `id`。
 
 ### レスポンス
 
@@ -75,32 +121,31 @@ curl -X POST http://localhost:8080/api/migrate \
 
 ```json
 {
-  "user": "morita2023",
-  "running": true,
-  "total": 30,
-  "done": 12,
-  "failed": 1,
-  "pending": 17
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "user": "morit958",
+  "status": "running",
+  "summary": {
+    "total": 30,
+    "done": 12,
+    "failed": 1,
+    "pending": 17
+  }
 }
 ```
 
-| フィールド | 説明                                      |
-| ---------- | ----------------------------------------- |
-| `user`     | ユーザー名                                |
-| `running`  | worker が現在このユーザーを処理中かどうか |
-| `total`    | 対象ページ総数                            |
-| `done`     | 移行完了数                                |
-| `failed`   | 失敗数（再実行で再処理される）            |
-| `pending`  | 未処理数                                  |
-
-**404 Not Found** — 指定ユーザーの移行レコードが存在しない
-
-```json
-{ "error": "user not found" }
-```
+| フィールド        | 説明                                                           |
+| ----------------- | -------------------------------------------------------------- |
+| `id`              | 移行ジョブ ID                                                  |
+| `user`            | PukiWiki ユーザー名                                            |
+| `status`          | ジョブのステータス (`pending` / `running` / `done` / `failed`) |
+| `summary.total`   | 対象ページ総数                                                 |
+| `summary.done`    | 移行完了数                                                     |
+| `summary.failed`  | 失敗数                                                         |
+| `summary.pending` | 未処理数                                                       |
 
 ### cURL 例
 
 ```bash
-curl http://localhost:8080/api/migrate/morita2023/status
+curl -H "Authorization: Bearer $TOKEN" \
+    http://localhost:8080/api/migrate/550e8400-e29b-41d4-a716-446655440000/status
 ```

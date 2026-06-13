@@ -24,6 +24,10 @@ type migrateRequest struct {
 	NotionPageID string `json:"notionPageId"`
 }
 
+type migrateResponse struct {
+	ID string `json:"id"`
+}
+
 func handleMigrate(uc usecaseInterface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req migrateRequest
@@ -32,14 +36,16 @@ func handleMigrate(uc usecaseInterface) http.HandlerFunc {
 			return
 		}
 
-		_, err := uc.start(r.Context(), req.User, req.NotionPageID)
+		m, err := uc.start(r.Context(), req.User, req.NotionPageID)
 		if err != nil {
 			slog.Error("failed to start migration", "error", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(migrateResponse{ID: m.id})
 	}
 }
 

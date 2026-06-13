@@ -1,6 +1,6 @@
 .DS_Store
 
-pukiwiki-migration.db
+pukiwiki-migration.db*
 pukiwiki-migration
 
 .env
